@@ -50,7 +50,9 @@ def load_demographics(cur: psycopg.Cursor, path: Path, valid_zids: set[int]) -> 
             cnt = int(float(row["cnt"]))
             home_zid_raw = row.get("home_zid", "")
             job_zid_raw = row.get("job_zid", "")
-            home_zid = int(float(home_zid_raw)) if home_zid_raw and float(home_zid_raw) != 0 else None
+            home_zid = (
+                int(float(home_zid_raw)) if home_zid_raw and float(home_zid_raw) != 0 else None
+            )
             job_zid = int(float(job_zid_raw)) if job_zid_raw and float(job_zid_raw) != 0 else None
             cur.execute(
                 """
@@ -79,14 +81,16 @@ def load_dynamics(cur: psycopg.Cursor, path: Path, valid_zids: set[int]) -> int:
                 continue
             ts_hours = int(row["ts"])
             ts_dt = TS_EPOCH + timedelta(hours=ts_hours)
-            batch.append((
-                zid,
-                ts_dt,
-                int(float(row["income"])),
-                int(float(row["age"])),
-                int(float(row["gender"])),
-                int(float(row["cnt"])),
-            ))
+            batch.append(
+                (
+                    zid,
+                    ts_dt,
+                    int(float(row["income"])),
+                    int(float(row["age"])),
+                    int(float(row["gender"])),
+                    int(float(row["cnt"])),
+                )
+            )
             count += 1
             if len(batch) >= 5000:
                 _insert_dynamics_batch(cur, batch)

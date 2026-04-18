@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 
 import sqlalchemy as sa
-from sqlalchemy.ext.asyncio import AsyncConnection
 
 from backend.db.engine import engine
 
