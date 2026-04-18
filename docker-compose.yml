@@ -1,7 +1,7 @@
 services:
   # === App Database ===
   postgres:
-    image: postgis/postgis:16-3.4
+    image: imresamu/postgis:16-3.4  # multi-arch (amd64 + arm64)
     environment:
       POSTGRES_USER: geoinsight
       POSTGRES_PASSWORD: geoinsight
