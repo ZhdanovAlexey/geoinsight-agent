@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-PGDSN="${POSTGRES_DSN:-postgresql://geoinsight:geoinsight@localhost:5432/geoinsight}"
+PGDSN="${POSTGRES_DSN:-postgresql://geoinsight:geoinsight@localhost:5433/geoinsight}"
 
 echo "==> Dropping and recreating database..."
 psql "$PGDSN" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"

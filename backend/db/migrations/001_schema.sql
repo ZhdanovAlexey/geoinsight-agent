@@ -10,14 +10,14 @@ CREATE TABLE zones (
 
 -- Zone demographics (aggregates)
 CREATE TABLE zone_demographics (
+    id        BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     zid       BIGINT NOT NULL REFERENCES zones(zid),
     income    SMALLINT NOT NULL,
     age       SMALLINT NOT NULL,
     gender    SMALLINT NOT NULL,
     cnt       INTEGER NOT NULL,
     home_zid  BIGINT,
-    job_zid   BIGINT,
-    PRIMARY KEY (zid, income, age, gender, COALESCE(home_zid, 0), COALESCE(job_zid, 0))
+    job_zid   BIGINT
 );
 
 -- Zone dynamics (time series)

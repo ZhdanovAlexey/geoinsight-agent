@@ -49,9 +49,9 @@ cp .env.example .env
 ### 4. Load demo data
 
 ```bash
-psql postgresql://geoinsight:geoinsight@localhost:5432/geoinsight \
+psql postgresql://geoinsight:geoinsight@localhost:5433/geoinsight \
   -f backend/db/migrations/001_schema.sql
-psql postgresql://geoinsight:geoinsight@localhost:5432/geoinsight \
+psql postgresql://geoinsight:geoinsight@localhost:5433/geoinsight \
   -f backend/db/migrations/002_indices.sql
 
 uv run python data/load_demo.py --city Olmaliq --data-dir ./dataset

@@ -114,7 +114,7 @@ def main() -> None:
     parser.add_argument("--data-dir", required=True, help="Directory with CSV files")
     parser.add_argument(
         "--dsn",
-        default="postgresql://geoinsight:geoinsight@localhost:5432/geoinsight",
+        default="postgresql://geoinsight:geoinsight@localhost:5433/geoinsight",
         help="Postgres DSN",
     )
     args = parser.parse_args()

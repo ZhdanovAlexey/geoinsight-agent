@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     log_format: str = "json"
 
     # Postgres
-    postgres_dsn: str = "postgresql+psycopg://geoinsight:geoinsight@localhost:5432/geoinsight"
+    postgres_dsn: str = "postgresql+psycopg://geoinsight:geoinsight@localhost:5433/geoinsight"
 
     # Langfuse
     langfuse_host: str = "http://localhost:3030"
