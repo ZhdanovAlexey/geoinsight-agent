@@ -69,7 +69,7 @@ uv run python data/load_demo.py --city Olmaliq --data-dir ./dataset
 ./scripts/start_streamlit.sh
 ```
 
-Open http://localhost:8501 and ask: "Где открыть кофейню для аудитории 25-35 в Олмалике?"
+Open http://localhost:8501 and ask: "Где открыть кофейню для аудитории 25-35 в Алмалыке?"
 
 ## Architecture
 
