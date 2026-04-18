@@ -38,6 +38,7 @@ services:
       CLICKHOUSE_PASSWORD: langfuse
     volumes:
       - langfuse_ch_data:/var/lib/clickhouse
+      - ./infra/clickhouse/keeper.xml:/etc/clickhouse-server/config.d/keeper.xml:ro
     healthcheck:
       test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
       interval: 5s
@@ -82,6 +83,7 @@ services:
     environment:
       DATABASE_URL: postgresql://langfuse:langfuse@langfuse-postgres:5432/langfuse
       CLICKHOUSE_URL: http://langfuse-clickhouse:8123
+      CLICKHOUSE_MIGRATION_URL: clickhouse://langfuse:langfuse@langfuse-clickhouse:9000/default
       CLICKHOUSE_USER: langfuse
       CLICKHOUSE_PASSWORD: langfuse
       REDIS_HOST: langfuse-redis
@@ -91,6 +93,12 @@ services:
       S3_SECRET_ACCESS_KEY: langfuse123
       S3_BUCKET_NAME: langfuse
       S3_REGION: auto
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: langfuse123
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
       NEXTAUTH_SECRET: mysecretkey-change-in-prod
       NEXTAUTH_URL: http://localhost:3030
       SALT: mysalt-change-in-prod
@@ -116,6 +124,7 @@ services:
     environment:
       DATABASE_URL: postgresql://langfuse:langfuse@langfuse-postgres:5432/langfuse
       CLICKHOUSE_URL: http://langfuse-clickhouse:8123
+      CLICKHOUSE_MIGRATION_URL: clickhouse://langfuse:langfuse@langfuse-clickhouse:9000/default
       CLICKHOUSE_USER: langfuse
       CLICKHOUSE_PASSWORD: langfuse
       REDIS_HOST: langfuse-redis
@@ -125,6 +134,12 @@ services:
       S3_SECRET_ACCESS_KEY: langfuse123
       S3_BUCKET_NAME: langfuse
       S3_REGION: auto
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: langfuse123
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
 
 volumes:
   postgres_data:

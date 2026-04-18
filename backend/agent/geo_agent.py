@@ -1,4 +1,4 @@
-from agents import Agent, set_default_openai_client
+from agents import Agent, set_default_openai_client, set_tracing_disabled
 from openai import AsyncOpenAI
 
 from backend.agent.system_prompt import SYSTEM_PROMPT
@@ -20,6 +20,7 @@ _client = AsyncOpenAI(
     api_key=settings.llm_api_key,
 )
 set_default_openai_client(_client)
+set_tracing_disabled(True)  # Disable OpenAI's built-in tracing — we use Langfuse via OTEL
 
 geo_agent = Agent[GeoContext](
     name="GeoInsight",

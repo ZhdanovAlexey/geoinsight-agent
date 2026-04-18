@@ -1,4 +1,8 @@
 import os
+import sys
+
+# Ensure project root is on sys.path so "streamlit_app" is importable
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import streamlit as st
 

@@ -41,6 +41,7 @@ async def run_agent_stream(
 
     tool_timers: dict[str, float] = {}
     tools_called: list[str] = []
+    seen_tool_calls: set[str] = set()  # Deduplicate ToolCallItem events
     emitted_artifact_count = 0
 
     try:
@@ -85,6 +86,11 @@ async def run_agent_stream(
 
                 if isinstance(item, ToolCallItem):
                     call_id = getattr(item, "call_id", None) or str(uuid.uuid4())
+                    # ToolCallItem fires multiple times as args stream in — only emit once
+                    if call_id in seen_tool_calls:
+                        continue
+                    seen_tool_calls.add(call_id)
+
                     tool_name = "unknown"
                     args = {}
                     if hasattr(item, "raw_item") and hasattr(item.raw_item, "name"):

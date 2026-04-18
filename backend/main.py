@@ -57,10 +57,10 @@ async def healthz() -> dict:
     return {"status": status, "checks": checks}
 
 
-@app.post("/v1/chat/completions")
+@app.post("/v1/chat/completions", response_model=None)
 async def chat_completions(
     request: ChatCompletionRequest, raw_request: Request
-) -> StreamingResponse | JSONResponse:
+):
     """OpenAI-compatible chat completions endpoint (TZ:7)."""
     trace_id = raw_request.headers.get("x-trace-id", str(uuid.uuid4()))
     structlog.contextvars.bind_contextvars(trace_id=trace_id)
