@@ -43,21 +43,30 @@ with st.sidebar:
     st.divider()
 
     # Suggestions
-    st.markdown("#### Примеры запросов")
+    st.markdown("#### Попробуйте спросить")
 
-    SUGGESTIONS = [
-        "Где открыть кофейню для аудитории 25-35 в Олмалике?",
-        "Какая демография зоны 4277303?",
-        "Покажи трафик по часам в зоне 4267953",
-        "Найди топ-10 зон с высоким доходом в Олмалике",
-        "Сколько людей в радиусе 2 км от зоны 4277303?",
-        "Сравни зоны 4277303 и 4267953",
-        "Найди зону возле улицы Навои в Олмалике",
+    st.caption("Быстрые вопросы")
+    SIMPLE = [
+        "Где в Олмалике больше всего молодёжи 18-25?",
+        "Кто живёт рядом с базаром в Олмалике?",
+        "Когда пиковый трафик возле улицы Навои?",
     ]
+    for i, s in enumerate(SIMPLE):
+        if st.button(s, key=f"s_{i}", use_container_width=True):
+            st.session_state.messages.append({"role": "user", "content": s})
+            st.session_state.pending = True
+            st.rerun()
 
-    for i, suggestion in enumerate(SUGGESTIONS):
-        if st.button(suggestion, key=f"suggest_{i}", use_container_width=True):
-            st.session_state.messages.append({"role": "user", "content": suggestion})
+    st.caption("Бизнес-сценарии")
+    COMPLEX = [
+        "Хочу открыть кофейню для аудитории 25-35 с доходом выше среднего — где лучше в Олмалике?",
+        "Сколько потенциальных клиентов в радиусе 2 км от центра Олмалика?",
+        "Сравни район АГМК и центр Олмалика по населению и доходу",
+        "Ищу место для фитнес-клуба: женщины 26-45, высокий доход, покажи лучшие зоны и трафик",
+    ]
+    for i, s in enumerate(COMPLEX):
+        if st.button(s, key=f"c_{i}", use_container_width=True):
+            st.session_state.messages.append({"role": "user", "content": s})
             st.session_state.pending = True
             st.rerun()
 
