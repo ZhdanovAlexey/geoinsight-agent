@@ -71,30 +71,37 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
     from backend.agent.runner import run_agent_non_stream
     from backend.api.sse import sse_done, sse_event
 
-    # Always run agent non-streaming, then format as SSE if needed
-    text, artifacts, langfuse_url = await run_agent_non_stream(request.messages, trace_id)
+    text, artifacts, tool_steps, langfuse_url = await run_agent_non_stream(
+        request.messages, trace_id
+    )
 
     if request.stream:
 
         async def _sse_from_result():
+            cid = f"chatcmpl-{trace_id[:12]}"
             yield sse_event(
                 {"trace_id": trace_id, "langfuse_url": langfuse_url}, event="trace_started"
             )
             yield sse_event(
                 {
-                    "id": f"chatcmpl-{trace_id[:12]}",
+                    "id": cid,
                     "object": "chat.completion.chunk",
                     "choices": [
                         {"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}
                     ],
                 }
             )
+            # Tool steps with args and outputs
+            for step in tool_steps:
+                yield sse_event(step, event="tool_call")
+            # Artifacts
             for art in artifacts:
                 yield sse_event(art, event="artifact")
+            # Final text
             if text:
                 yield sse_event(
                     {
-                        "id": f"chatcmpl-{trace_id[:12]}",
+                        "id": cid,
                         "object": "chat.completion.chunk",
                         "choices": [
                             {"index": 0, "delta": {"content": text}, "finish_reason": None}
@@ -103,7 +110,7 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
                 )
             yield sse_event(
                 {
-                    "id": f"chatcmpl-{trace_id[:12]}",
+                    "id": cid,
                     "object": "chat.completion.chunk",
                     "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
                 }

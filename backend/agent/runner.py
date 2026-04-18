@@ -15,8 +15,8 @@ log = structlog.get_logger()
 async def run_agent_non_stream(
     messages: list[ChatMessage],
     trace_id: str,
-) -> tuple[str, list[dict], str | None]:
-    """Run the agent and return (text, artifacts, langfuse_url)."""
+) -> tuple[str, list[dict], list[dict], str | None]:
+    """Run the agent and return (text, artifacts, tool_steps, langfuse_url)."""
     ctx = GeoContext(trace_id=trace_id)
 
     log.info("agent.started", trace_id=trace_id, model=geo_agent.model)
@@ -33,10 +33,12 @@ async def run_agent_non_stream(
 
     final_text = result.final_output or ""
 
-    # Collect tool info
-    tools_called = []
+    # Collect tool steps: pair ToolCallItem with ToolCallOutputItem
+    tool_steps = []
+    pending_call = None
     for item in result.new_items:
         item_type = type(item).__name__
+
         if item_type == "ToolCallItem":
             tool_name = (
                 getattr(item.raw_item, "name", "unknown")
@@ -49,13 +51,31 @@ async def run_agent_non_stream(
                     args = json.loads(item.raw_item.arguments or "{}")
                 except (json.JSONDecodeError, TypeError):
                     pass
-            tools_called.append({"name": tool_name, "args": args})
+            pending_call = {"name": tool_name, "args": args, "output": None}
+
+        elif item_type == "ToolCallOutputItem":
+            output = getattr(item, "output", None)
+            if isinstance(output, str):
+                try:
+                    output = json.loads(output)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            if pending_call:
+                pending_call["output"] = output
+                tool_steps.append(pending_call)
+                pending_call = None
+            else:
+                tool_steps.append({"name": "unknown", "args": {}, "output": output})
+
+    # Flush any pending call without output
+    if pending_call:
+        tool_steps.append(pending_call)
 
     log.info(
         "agent.finished",
         trace_id=trace_id,
         total_duration_ms=total_duration_ms,
-        tools_called=[t["name"] for t in tools_called],
+        tools_called=[t["name"] for t in tool_steps],
         artifacts_count=len(ctx.artifacts),
     )
 
@@ -66,17 +86,22 @@ async def run_agent_non_stream(
         input_data={"messages": input_messages},
         output_data={"text": final_text[:500], "artifacts_count": len(ctx.artifacts)},
         metadata={
-            "tools_called": [t["name"] for t in tools_called],
+            "tools_called": [t["name"] for t in tool_steps],
             "total_duration_ms": total_duration_ms,
             "model": geo_agent.model,
         },
     )
 
-    for tool in tools_called:
+    for step in tool_steps:
+        # Truncate output for Langfuse (avoid huge GeoJSON)
+        output_for_lf = step["output"]
+        if isinstance(output_for_lf, dict):
+            output_for_lf = {k: v for k, v in output_for_lf.items() if k != "geojson"}
         langfuse_span(
             trace_id=trace_id,
-            name=f"tool.{tool['name']}",
-            input_data=tool["args"],
+            name=f"tool.{step['name']}",
+            input_data=step["args"],
+            output_data=output_for_lf,
         )
 
-    return final_text, ctx.artifacts, langfuse_url
+    return final_text, ctx.artifacts, tool_steps, langfuse_url
