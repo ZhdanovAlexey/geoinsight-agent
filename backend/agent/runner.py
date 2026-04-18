@@ -3,6 +3,7 @@ import time
 
 import structlog
 from agents import Runner
+from agents.exceptions import MaxTurnsExceeded
 
 from backend.agent.geo_agent import geo_agent
 from backend.api.schemas import ChatMessage
@@ -10,6 +11,8 @@ from backend.observability import langfuse_span, langfuse_trace
 from backend.tools.base import GeoContext
 
 log = structlog.get_logger()
+
+MAX_AGENT_TURNS = 25
 
 
 async def run_agent_non_stream(
@@ -24,19 +27,27 @@ async def run_agent_non_stream(
     input_messages = [{"role": m.role, "content": m.content} for m in messages]
 
     t0 = time.monotonic()
-    result = await Runner.run(
-        geo_agent,
-        input=input_messages,
-        context=ctx,
-    )
+    try:
+        result = await Runner.run(
+            geo_agent,
+            input=input_messages,
+            context=ctx,
+            max_turns=MAX_AGENT_TURNS,
+        )
+        final_text = result.final_output or ""
+    except MaxTurnsExceeded:
+        log.warning("agent.max_turns_exceeded", trace_id=trace_id, max_turns=MAX_AGENT_TURNS)
+        result = None
+        final_text = (
+            "Анализ оказался слишком объёмным — превышен лимит шагов. "
+            "Попробуйте более конкретный вопрос или ограничьте количество зон."
+        )
     total_duration_ms = int((time.monotonic() - t0) * 1000)
-
-    final_text = result.final_output or ""
 
     # Collect tool steps: pair ToolCallItem with ToolCallOutputItem
     tool_steps = []
     pending_call = None
-    for item in result.new_items:
+    for item in result.new_items if result else []:
         item_type = type(item).__name__
 
         if item_type == "ToolCallItem":
