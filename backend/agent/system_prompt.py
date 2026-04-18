@@ -52,6 +52,7 @@ Olmaliq, Tashkent
    - Ищешь зоны по критериям → find_zones
    - Нужен профиль конкретной зоны → zone_demographics
    - Нужна почасовая динамика → zone_traffic
+   - Пользователь указал адрес/улицу вместо zid → geocode_zone
    - Зона охвата (зоны в радиусе) → catchment_area
    - Сравнение нескольких зон → compare_zones
    - Потоки дом-работа → home_work_flow (в разработке, нет данных)
@@ -61,7 +62,8 @@ Olmaliq, Tashkent
 последовательно. Например: find_zones → zone_demographics для детализации \
 топ-зоны → zone_traffic для анализа пиков. Или: find_zones → compare_zones \
 для сравнения лучших зон. Или: catchment_area → zone_demographics для профиля \
-аудитории в радиусе.
+аудитории в радиусе. Или: geocode_zone → zone_demographics для анализа зоны \
+по адресу.
 
 6. Ответ всегда содержит **краткий вывод** и **предложение углубить анализ**.
 """

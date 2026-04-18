@@ -5,9 +5,15 @@ from streamlit_app.artifacts import render_artifact
 
 def render_chat() -> None:
     """Render chat history and handle new input."""
-    for msg in st.session_state.messages:
+    pending = st.session_state.get("pending", False)
+
+    # Render history (skip last user msg if pending — will be rendered with processing)
+    messages_to_show = st.session_state.messages
+    if pending and messages_to_show and messages_to_show[-1]["role"] == "user":
+        messages_to_show = messages_to_show[:-1]
+
+    for msg in messages_to_show:
         with st.chat_message(msg["role"]):
-            # Show tool steps if present
             if msg.get("tool_steps"):
                 _render_tool_steps(msg["tool_steps"])
             st.markdown(msg["content"])
@@ -16,14 +22,25 @@ def render_chat() -> None:
             if msg.get("langfuse_url"):
                 st.caption(f"[Trace в Langfuse]({msg['langfuse_url']})")
 
+    # New input from chat box
     user_input = st.chat_input("Спросите про геоданные...")
-    if not user_input:
-        return
 
-    st.session_state.messages.append({"role": "user", "content": user_input})
-    with st.chat_message("user"):
-        st.markdown(user_input)
+    if user_input:
+        st.session_state.messages.append({"role": "user", "content": user_input})
+        pending = True
 
+    if pending:
+        st.session_state.pending = False
+        prompt = st.session_state.messages[-1]["content"]
+
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        _process_and_render(prompt)
+
+
+def _process_and_render(prompt: str) -> None:
+    """Send prompt to backend and render the streaming response."""
     with st.chat_message("assistant"):
         status = st.status("Думаю...", expanded=True)
         text_placeholder = st.empty()
@@ -63,7 +80,6 @@ def render_chat() -> None:
 
         status.update(label="Готово", state="complete", expanded=False)
 
-        # Render tool steps
         if tool_steps:
             _render_tool_steps(tool_steps)
 

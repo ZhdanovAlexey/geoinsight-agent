@@ -216,6 +216,48 @@ async def query_compare_zones(zids: list[int]) -> list[ZoneComparisonRow]:
 
 
 @dataclass
+class NearestZone:
+    zid: int
+    distance_m: float
+    total: int
+
+
+async def query_nearest_zone(
+    lat: float,
+    lon: float,
+    city: str = "Olmaliq",
+) -> NearestZone | None:
+    """Find the nearest zone to a lat/lon point."""
+    sql = sa.text("""
+        SELECT
+            z.zid,
+            ST_Distance(
+                z.centroid::geography,
+                ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography
+            ) AS distance_m,
+            COALESCE(SUM(zd.cnt), 0) AS total
+        FROM zones z
+        LEFT JOIN zone_demographics zd ON zd.zid = z.zid
+        WHERE z.city = :city
+        GROUP BY z.zid, z.centroid
+        ORDER BY z.centroid <-> ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)
+        LIMIT 1
+    """)
+
+    async with engine.connect() as conn:
+        row = (await conn.execute(sql, {"lat": lat, "lon": lon, "city": city})).mappings().first()
+
+    if not row:
+        return None
+
+    return NearestZone(
+        zid=row["zid"],
+        distance_m=round(row["distance_m"], 0),
+        total=row["total"],
+    )
+
+
+@dataclass
 class CatchmentZone:
     zid: int
     distance_m: float
