@@ -40,29 +40,34 @@ async def query_find_zones(
     params: dict = {"city": city, "top_n": top_n}
 
     if age:
-        conditions.append("zd.age = ANY(:age)")
+        conditions.append("d.age = ANY(:age)")
         params["age"] = age
     if income:
-        conditions.append("zd.income = ANY(:income)")
+        conditions.append("d.income = ANY(:income)")
         params["income"] = income
     if gender:
-        conditions.append("zd.gender = ANY(:gender)")
+        conditions.append("d.gender = ANY(:gender)")
         params["gender"] = gender
 
     where = " AND ".join(conditions)
 
     having = ""
     if min_total:
-        having = "HAVING SUM(zd.cnt) >= :min_total"
+        having = "HAVING SUM(d.cnt) >= :min_total"
         params["min_total"] = min_total
 
     sql = sa.text(f"""
+        WITH dedup AS (
+            SELECT zid, income, age, gender, MAX(cnt) AS cnt
+            FROM zone_demographics
+            GROUP BY zid, income, age, gender
+        )
         SELECT
             z.zid,
-            SUM(zd.cnt) AS total,
+            SUM(d.cnt) AS total,
             ST_AsGeoJSON(z.geom)::json AS geometry_geojson
         FROM zones z
-        JOIN zone_demographics zd ON zd.zid = z.zid
+        JOIN dedup d ON d.zid = z.zid
         WHERE {where}
         GROUP BY z.zid, z.geom
         {having}
@@ -108,7 +113,7 @@ async def query_zone_demographics(
     where = " AND ".join(conditions)
 
     sql = sa.text(f"""
-        SELECT income, age, gender, SUM(cnt) AS cnt
+        SELECT income, age, gender, MAX(cnt) AS cnt
         FROM zone_demographics
         WHERE {where}
         GROUP BY income, age, gender
@@ -169,7 +174,7 @@ async def query_compare_zones(zids: list[int]) -> list[ZoneComparisonRow]:
     for zid in zids:
         # Demographics
         demo_sql = sa.text("""
-            SELECT income, age, gender, SUM(cnt) AS cnt
+            SELECT income, age, gender, MAX(cnt) AS cnt
             FROM zone_demographics
             WHERE zid = :zid
             GROUP BY income, age, gender
@@ -229,15 +234,20 @@ async def query_nearest_zone(
 ) -> NearestZone | None:
     """Find the nearest zone to a lat/lon point."""
     sql = sa.text("""
+        WITH dedup AS (
+            SELECT zid, MAX(cnt) AS cnt
+            FROM zone_demographics
+            GROUP BY zid, income, age, gender
+        )
         SELECT
             z.zid,
             ST_Distance(
                 z.centroid::geography,
                 ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography
             ) AS distance_m,
-            COALESCE(SUM(zd.cnt), 0) AS total
+            COALESCE(SUM(d.cnt), 0) AS total
         FROM zones z
-        LEFT JOIN zone_demographics zd ON zd.zid = z.zid
+        LEFT JOIN dedup d ON d.zid = z.zid
         WHERE z.city = :city
         GROUP BY z.zid, z.centroid
         ORDER BY z.centroid <-> ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)
@@ -273,15 +283,20 @@ async def query_catchment_area(
     sql = sa.text("""
         WITH center AS (
             SELECT centroid FROM zones WHERE zid = :zid
+        ),
+        dedup AS (
+            SELECT zid, MAX(cnt) AS cnt
+            FROM zone_demographics
+            GROUP BY zid, income, age, gender
         )
         SELECT
             z.zid,
             ST_Distance(z.centroid::geography, c.centroid::geography) AS distance_m,
-            COALESCE(SUM(zd.cnt), 0) AS total,
+            COALESCE(SUM(d.cnt), 0) AS total,
             ST_AsGeoJSON(z.geom)::json AS geometry_geojson
         FROM zones z
         CROSS JOIN center c
-        LEFT JOIN zone_demographics zd ON zd.zid = z.zid
+        LEFT JOIN dedup d ON d.zid = z.zid
         WHERE ST_DWithin(z.centroid::geography, c.centroid::geography, :radius_m)
         GROUP BY z.zid, z.geom, z.centroid, c.centroid
         ORDER BY distance_m
