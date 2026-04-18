@@ -150,3 +150,110 @@ async def query_zone_traffic(
         rows = (await conn.execute(sql, params)).mappings().all()
 
     return [TrafficRow(hour=r["hour"], cnt=r["cnt"]) for r in rows]
+
+
+@dataclass
+class ZoneComparisonRow:
+    zid: int
+    total: int
+    by_income: dict
+    by_age: dict
+    by_gender: dict
+    peak_hour: int | None
+    peak_traffic: int | None
+
+
+async def query_compare_zones(zids: list[int]) -> list[ZoneComparisonRow]:
+    """Get demographic and traffic summary for multiple zones."""
+    results = []
+    for zid in zids:
+        # Demographics
+        demo_sql = sa.text("""
+            SELECT income, age, gender, SUM(cnt) AS cnt
+            FROM zone_demographics
+            WHERE zid = :zid
+            GROUP BY income, age, gender
+        """)
+        async with engine.connect() as conn:
+            demo_rows = (await conn.execute(demo_sql, {"zid": zid})).mappings().all()
+
+        total = sum(r["cnt"] for r in demo_rows)
+        by_income: dict[int, int] = {}
+        by_age: dict[int, int] = {}
+        by_gender: dict[int, int] = {}
+        for r in demo_rows:
+            by_income[r["income"]] = by_income.get(r["income"], 0) + r["cnt"]
+            by_age[r["age"]] = by_age.get(r["age"], 0) + r["cnt"]
+            by_gender[r["gender"]] = by_gender.get(r["gender"], 0) + r["cnt"]
+
+        # Traffic peak
+        traffic_sql = sa.text("""
+            SELECT EXTRACT(HOUR FROM ts)::int AS hour, SUM(cnt) AS cnt
+            FROM zone_dynamics
+            WHERE zid = :zid
+            GROUP BY hour
+            ORDER BY cnt DESC
+            LIMIT 1
+        """)
+        async with engine.connect() as conn:
+            traffic_row = (await conn.execute(traffic_sql, {"zid": zid})).mappings().first()
+
+        peak_hour = traffic_row["hour"] if traffic_row else None
+        peak_traffic = traffic_row["cnt"] if traffic_row else None
+
+        results.append(
+            ZoneComparisonRow(
+                zid=zid,
+                total=total,
+                by_income=by_income,
+                by_age=by_age,
+                by_gender=by_gender,
+                peak_hour=peak_hour,
+                peak_traffic=peak_traffic,
+            )
+        )
+    return results
+
+
+@dataclass
+class CatchmentZone:
+    zid: int
+    distance_m: float
+    total: int
+    geometry_geojson: dict
+
+
+async def query_catchment_area(
+    zid: int,
+    radius_m: int = 1000,
+) -> list[CatchmentZone]:
+    """Find all zones within radius_m of the given zone's centroid."""
+    sql = sa.text("""
+        WITH center AS (
+            SELECT centroid FROM zones WHERE zid = :zid
+        )
+        SELECT
+            z.zid,
+            ST_Distance(z.centroid::geography, c.centroid::geography) AS distance_m,
+            COALESCE(SUM(zd.cnt), 0) AS total,
+            ST_AsGeoJSON(z.geom)::json AS geometry_geojson
+        FROM zones z
+        CROSS JOIN center c
+        LEFT JOIN zone_demographics zd ON zd.zid = z.zid
+        WHERE ST_DWithin(z.centroid::geography, c.centroid::geography, :radius_m)
+        GROUP BY z.zid, z.geom, z.centroid, c.centroid
+        ORDER BY distance_m
+    """)
+
+    async with engine.connect() as conn:
+        rows = (await conn.execute(sql, {"zid": zid, "radius_m": radius_m})).mappings().all()
+
+    return [
+        CatchmentZone(
+            zid=r["zid"],
+            distance_m=round(r["distance_m"], 0),
+            total=r["total"],
+            geometry_geojson=r["geometry_geojson"],
+        )
+        for r in rows
+    ]

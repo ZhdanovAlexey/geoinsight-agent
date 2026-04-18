@@ -1,4 +1,3 @@
-
 import streamlit as st
 
 from streamlit_app.artifacts import render_artifact

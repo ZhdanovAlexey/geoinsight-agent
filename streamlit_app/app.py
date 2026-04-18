@@ -36,13 +36,15 @@ SUGGESTIONS = [
     "Какая демография зоны 4277303?",
     "Покажи трафик по часам в зоне 4267953",
     "Найди топ-10 зон с высоким доходом в Олмалике",
+    "Сколько людей живёт в радиусе 2 км от зоны 4277303?",
+    "Сравни зоны 4277303 и 4267953 по демографии",
 ]
 
 if not st.session_state.messages:
     st.markdown("##### Попробуйте спросить:")
-    cols = st.columns(2)
+    cols = st.columns(3)
     for i, suggestion in enumerate(SUGGESTIONS):
-        with cols[i % 2]:
+        with cols[i % 3]:
             if st.button(suggestion, key=f"suggest_{i}", use_container_width=True):
                 st.session_state.messages.append({"role": "user", "content": suggestion})
                 st.rerun()
