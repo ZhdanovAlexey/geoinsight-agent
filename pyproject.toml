@@ -1,0 +1,42 @@
+[project]
+name = "geoinsight-agent"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "openai-agents",
+    "openai>=1.50",
+    "fastapi",
+    "uvicorn[standard]",
+    "httpx",
+    "pydantic>=2.7",
+    "pydantic-settings",
+    "sqlalchemy>=2.0",
+    "psycopg[binary]>=3.2",
+    "geoalchemy2",
+    "shapely",
+    "structlog",
+    "langfuse>=3.0",
+    "opentelemetry-api",
+    "opentelemetry-sdk",
+    "opentelemetry-exporter-otlp-proto-http",
+]
+
+[project.optional-dependencies]
+demo = ["streamlit", "pydeck", "pandas"]
+dev = ["pytest", "pytest-asyncio", "ruff", "mypy"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[tool.mypy]
+python_version = "3.12"
+strict = false
+warn_return_any = true
+warn_unused_configs = true
