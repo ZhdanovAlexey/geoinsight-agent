@@ -1,0 +1,32 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    env_file: .env
+    environment:
+      POSTGRES_DSN: "postgresql+psycopg://geoinsight:geoinsight@postgres:5432/geoinsight"
+      LANGFUSE_HOST: "http://langfuse-web:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile.streamlit
+    ports:
+      - "8501:8501"
+    env_file: .env
+    environment:
+      BACKEND_URL: "http://backend:8080"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  langfuse-web:
+    environment:
+      NEXTAUTH_URL: "http://176.124.211.211:3030"
