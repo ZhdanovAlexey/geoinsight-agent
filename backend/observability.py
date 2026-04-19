@@ -68,7 +68,8 @@ def langfuse_trace(
     except Exception:
         log.warning("langfuse.trace_error", exc_info=True)
 
-    return f"{settings.langfuse_host}/trace/{trace_id}"
+    public_url = settings.langfuse_public_url or settings.langfuse_host
+    return f"{public_url}/trace/{trace_id}"
 
 
 def langfuse_span(
