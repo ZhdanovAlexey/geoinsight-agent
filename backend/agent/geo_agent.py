@@ -1,4 +1,5 @@
 from agents import Agent, set_default_openai_client
+from agents.tracing import set_tracing_disabled
 from openai import AsyncOpenAI
 
 from backend.agent.system_prompt import SYSTEM_PROMPT
@@ -7,6 +8,7 @@ from backend.tools import (
     catchment_area,
     compare_zones,
     find_zones,
+    geocode_zone,
     home_work_flow,
     roaming_analysis,
     zone_demographics,
@@ -20,6 +22,7 @@ _client = AsyncOpenAI(
     api_key=settings.llm_api_key,
 )
 set_default_openai_client(_client)
+set_tracing_disabled(True)  # We trace via Langfuse ingestion API directly
 
 geo_agent = Agent[GeoContext](
     name="GeoInsight",
@@ -29,6 +32,7 @@ geo_agent = Agent[GeoContext](
         find_zones,
         zone_demographics,
         zone_traffic,
+        geocode_zone,
         home_work_flow,
         catchment_area,
         compare_zones,

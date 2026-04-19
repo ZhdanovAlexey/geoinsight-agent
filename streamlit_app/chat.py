@@ -5,25 +5,48 @@ from streamlit_app.artifacts import render_artifact
 
 def render_chat() -> None:
     """Render chat history and handle new input."""
-    for msg in st.session_state.messages:
+    pending = st.session_state.get("pending", False)
+
+    # Render history (skip last user msg if pending — will be rendered with processing)
+    messages_to_show = st.session_state.messages
+    if pending and messages_to_show and messages_to_show[-1]["role"] == "user":
+        messages_to_show = messages_to_show[:-1]
+
+    for msg in messages_to_show:
         with st.chat_message(msg["role"]):
+            if msg.get("tool_steps"):
+                _render_tool_steps(msg["tool_steps"])
             st.markdown(msg["content"])
             for art in msg.get("artifacts", []):
                 render_artifact(art)
+            if msg.get("langfuse_url"):
+                st.caption(f"[Trace в Langfuse]({msg['langfuse_url']})")
 
+    # New input from chat box
     user_input = st.chat_input("Спросите про геоданные...")
-    if not user_input:
-        return
 
-    st.session_state.messages.append({"role": "user", "content": user_input})
-    with st.chat_message("user"):
-        st.markdown(user_input)
+    if user_input:
+        st.session_state.messages.append({"role": "user", "content": user_input})
+        pending = True
 
+    if pending:
+        st.session_state.pending = False
+        prompt = st.session_state.messages[-1]["content"]
+
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        _process_and_render(prompt)
+
+
+def _process_and_render(prompt: str) -> None:
+    """Send prompt to backend and render the streaming response."""
     with st.chat_message("assistant"):
         status = st.status("Думаю...", expanded=True)
         text_placeholder = st.empty()
         text = ""
         artifacts = []
+        tool_steps = []
         trace_url = None
 
         for ev in st.session_state.client.stream_chat(
@@ -33,24 +56,13 @@ def render_chat() -> None:
                 if isinstance(ev.data, dict):
                     trace_url = ev.data.get("langfuse_url")
 
-            elif ev.event == "tool_started":
+            elif ev.event == "tool_call":
                 if isinstance(ev.data, dict):
+                    tool_steps.append(ev.data)
+                    name = ev.data.get("name", "?")
+                    args = ev.data.get("args", {})
                     with status:
-                        st.write(
-                            f"**{ev.data.get('name', '?')}** — "
-                            f"`{_summarize_args(ev.data.get('args', {}))}`"
-                        )
-                        status.update(label=f"Выполняю {ev.data.get('name', '')}...")
-
-            elif ev.event == "tool_finished":
-                if isinstance(ev.data, dict):
-                    with status:
-                        st.write(f"Готово за {ev.data.get('duration_ms', '?')}мс")
-
-            elif ev.event == "tool_failed":
-                if isinstance(ev.data, dict):
-                    with status:
-                        st.error(f"Ошибка: {ev.data.get('error', '?')}")
+                        st.write(f"**{name}** `{_summarize_args(args)}`")
 
             elif ev.event == "artifact":
                 if isinstance(ev.data, dict):
@@ -66,8 +78,12 @@ def render_chat() -> None:
                     except (KeyError, IndexError):
                         pass
 
-        text_placeholder.markdown(text)
         status.update(label="Готово", state="complete", expanded=False)
+
+        if tool_steps:
+            _render_tool_steps(tool_steps)
+
+        text_placeholder.markdown(text)
 
         for art in artifacts:
             render_artifact(art)
@@ -80,8 +96,38 @@ def render_chat() -> None:
                 "role": "assistant",
                 "content": text,
                 "artifacts": artifacts,
+                "tool_steps": tool_steps,
+                "langfuse_url": trace_url,
             }
         )
+
+
+def _render_tool_steps(steps: list[dict]) -> None:
+    """Render tool call steps in an expander."""
+    with st.expander(f"Шаги агента ({len(steps)})", expanded=False):
+        for i, step in enumerate(steps, 1):
+            name = step.get("name", "?")
+            args = step.get("args", {})
+            output = step.get("output")
+
+            st.markdown(f"**{i}. {name}**")
+
+            cols = st.columns(2)
+            with cols[0]:
+                st.caption("Аргументы")
+                st.json(args, expanded=False)
+            with cols[1]:
+                st.caption("Результат")
+                if output:
+                    if isinstance(output, dict):
+                        st.json(output, expanded=False)
+                    else:
+                        st.code(str(output)[:500])
+                else:
+                    st.info("Нет данных")
+
+            if i < len(steps):
+                st.divider()
 
 
 def _summarize_args(args: dict) -> str:

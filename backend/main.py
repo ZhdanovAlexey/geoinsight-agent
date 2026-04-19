@@ -1,4 +1,3 @@
-import json
 import uuid
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
@@ -57,10 +56,8 @@ async def healthz() -> dict:
     return {"status": status, "checks": checks}
 
 
-@app.post("/v1/chat/completions")
-async def chat_completions(
-    request: ChatCompletionRequest, raw_request: Request
-) -> StreamingResponse | JSONResponse:
+@app.post("/v1/chat/completions", response_model=None)
+async def chat_completions(request: ChatCompletionRequest, raw_request: Request):
     """OpenAI-compatible chat completions endpoint (TZ:7)."""
     trace_id = raw_request.headers.get("x-trace-id", str(uuid.uuid4()))
     structlog.contextvars.bind_contextvars(trace_id=trace_id)
@@ -71,31 +68,60 @@ async def chat_completions(
         last_user_msg_preview=request.messages[-1].content[:100] if request.messages else "",
     )
 
-    # Lazy import to avoid circular imports at startup
-    from backend.agent.runner import run_agent_stream
+    from backend.agent.runner import run_agent_non_stream
+    from backend.api.sse import sse_done, sse_event
+
+    text, artifacts, tool_steps, langfuse_url = await run_agent_non_stream(
+        request.messages, trace_id
+    )
 
     if request.stream:
+
+        async def _sse_from_result():
+            cid = f"chatcmpl-{trace_id[:12]}"
+            yield sse_event(
+                {"trace_id": trace_id, "langfuse_url": langfuse_url}, event="trace_started"
+            )
+            yield sse_event(
+                {
+                    "id": cid,
+                    "object": "chat.completion.chunk",
+                    "choices": [
+                        {"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}
+                    ],
+                }
+            )
+            # Tool steps with args and outputs
+            for step in tool_steps:
+                yield sse_event(step, event="tool_call")
+            # Artifacts
+            for art in artifacts:
+                yield sse_event(art, event="artifact")
+            # Final text
+            if text:
+                yield sse_event(
+                    {
+                        "id": cid,
+                        "object": "chat.completion.chunk",
+                        "choices": [
+                            {"index": 0, "delta": {"content": text}, "finish_reason": None}
+                        ],
+                    }
+                )
+            yield sse_event(
+                {
+                    "id": cid,
+                    "object": "chat.completion.chunk",
+                    "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+                }
+            )
+            yield sse_done()
+
         return StreamingResponse(
-            run_agent_stream(request.messages, trace_id),
+            _sse_from_result(),
             media_type="text/event-stream",
             headers={"X-Trace-Id": trace_id},
         )
-
-    # Non-streaming: collect full response
-    text = ""
-    artifacts = []
-    async for chunk in run_agent_stream(request.messages, trace_id):
-        for line in chunk.strip().split("\n"):
-            if line.startswith("data: ") and line != "data: [DONE]":
-                try:
-                    data = json.loads(line[6:])
-                    if "choices" in data:
-                        content = data["choices"][0].get("delta", {}).get("content", "")
-                        text += content
-                    elif "type" in data and data.get("id", "").startswith("art_"):
-                        artifacts.append(data)
-                except (ValueError, KeyError, IndexError):
-                    pass
 
     response = ChatCompletionResponse(
         choices=[
