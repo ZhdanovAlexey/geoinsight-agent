@@ -9,6 +9,7 @@ services:
     environment:
       POSTGRES_DSN: "postgresql+psycopg://geoinsight:geoinsight@postgres:5432/geoinsight"
       LANGFUSE_HOST: "http://langfuse-web:3000"
+      LANGFUSE_PUBLIC_URL: "http://176.124.211.211:3030"
     depends_on:
       postgres:
         condition: service_healthy

@@ -19,6 +19,7 @@ class Settings(BaseSettings):
 
     # Langfuse
     langfuse_host: str = "http://localhost:3030"
+    langfuse_public_url: str = ""  # browser-facing URL; falls back to langfuse_host
     langfuse_public_key: str = ""
     langfuse_secret_key: str = ""
     langfuse_enabled: bool = True
