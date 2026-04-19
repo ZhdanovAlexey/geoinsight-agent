@@ -1,0 +1,50 @@
+name: Deploy to Timeweb VPS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - run: uv sync --all-extras
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+
+  deploy:
+    needs: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script_stop: true
+          command_timeout: 10m
+          script: |
+            set -euo pipefail
+            cd /opt/geoinsight
+
+            echo "==> Pulling latest code..."
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "==> Building and restarting services..."
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml build backend streamlit
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+            echo "==> Pruning old images..."
+            docker image prune -f
+
+            echo "==> Health check..."
+            sleep 10
+            curl -sf http://localhost:8080/healthz || echo "WARNING: healthz failed"
+
+            echo "==> Deploy complete."
